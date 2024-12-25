@@ -1,0 +1,178 @@
+---
+title: "STAT 240 Final Project Report"
+output: html_document
+---
+
+## Introduction
+
+Every year, the NCAA Men's Basketball Tournament, known as March Madness, captivates millions of college sports fans, offering a thrilling spectacle of competition, underdog triumphs, and fierce rivalries. 
+
+This excitement often raises deeper questions about the factors driving team success, particularly the significance of tournament seeding in predicting performance. Fans and analysts alike often speculate whether a team's seed accurately reflects its performance potential.
+
+In this analysis, we explore the question: Is there a significant relationship between a team’s tournament seed (SEED) and its adjusted offensive efficiency (ADJOE)? 
+
+To investigate this, we used data from the 2022 NCAA Division I college basketball season and constructed a simple linear regression model to examine the correlation between seeding and offensive efficiency.
+
+Our findings revealed that there is a statistically significant relationship between a team’s tournament seed and its adjusted offensive efficiency, suggesting that higher-seeded teams tend to exhibit stronger offensive performance. However, the relationship is not absolute, indicating that other factors may also play a crucial role in determining team success.
+
+## Background
+
+To answer our research question, we need the ADJOE (Adjusted Offensive Efficiency) and SEED values for all teams in our dataset.
+
+#### College Basketball Dataset (cbb.csv)
+
+The data for the 2022 Division I college basketball season comes from the NCAA Statistics site, with additional insights derived from a Kaggle dataset (College Basketball Dataset), which was sourced from Bart Torvik's T-Rank website (https://barttorvik.com/trank.php?year=2022#). The T-Rank dataset was built using official NCAA data and calculates offensive and defensive efficiency metrics.
+
+##### What is ADJOE?
+
+ADJOE, or Adjusted Offensive Efficiency, measures points scored per possession, adjusted for opponent strength. The formula is:
+
+ADJOE = Points Per 100 Possessions (PPP) of the team / (opponent's Adjusted Defensive Efficiency / Average PPP of the league)
+
+##### Example Calculation of ADJOE
+Assume the league-wide average PPP is 100, and Team A scores 110 PPP against Team B, which has an Adjusted Defensive Efficiency (ADJDE) of 90. Team A's ADJOE for that game would be 110 / (90 / 100) = 122.2
+
+Although Adj. DE (Adjusted Defensive Efficiency) is a key component in calculating ADJOE, it is not directly used in our report and will not be elaborated further.
+
+#### What is SEED?
+
+The NCAA men’s basketball tournament features 68 teams. Before the games begin, on Selection Sunday, these teams are ranked from 1 to 68 by the Selection Committee. This ranking is based on their performance during the regular season and conference tournaments, with the top-ranked team being No. 1. Four teams are eliminated in the First Four round, leaving 64 teams for the first round of the tournament.
+
+These remaining 64 teams are divided into four regions, each containing 16 teams. Within each region, teams are ranked from 1 to 16 (with 1 being the highest and 16 being the lowest), and this ranking is referred to as their seed.
+
+##### Scope of Analysis
+
+Our analysis focuses on 68 teams because not all NCAA Division I basketball teams receive a seed value. To ensure a targeted and meaningful analysis, we excluded the remaining 290 teams and included only the 68 teams with both SEED numbers and ADJOE data.
+
+## Analysis
+
+#### Initial Impressions
+
+As seen in the figure below, in most cases, higher-seeded teams (1-8) tend to have a higher ADJOE, while lower-seeded teams (9-16) tend to have a lower ADJOE.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = TRUE,
+                      error = TRUE, fig.height = 4)
+library(tidyverse)
+library(dplyr)
+library(magrittr)
+source("../../scripts/ggprob.R")
+
+cbb <- read_csv("../../data/cbb.csv")
+
+cbb_new <- cbb %>% 
+  filter(YEAR == 2022) %>% 
+  mutate(NEW_SEED = case_when(
+    SEED == "1" ~ 1,
+    SEED == "2" ~ 2,
+    SEED == "3" ~ 3,
+    SEED == "4" ~ 4,
+    SEED == "5" ~ 5,
+    SEED == "6" ~ 6,
+    SEED == "7" ~ 7,
+    SEED == "8" ~ 8,
+    SEED == "9" ~ 9,
+    SEED == "10" ~ 10,
+    SEED == "11" ~ 11,
+    SEED == "12" ~ 12,
+    SEED == "13" ~ 13,
+    SEED == "14" ~ 14,
+    SEED == "15" ~ 15,
+    SEED == "16" ~ 16,
+    TRUE ~ NA_integer_ 
+  )) %>% 
+  select(TEAM, ADJOE, NEW_SEED) 
+
+#created a new column called NEW_SEED because all the data in SEED was in the form of strings instead of integers.
+
+#For simplicity I will be referencing NEW_SEED as SEED.
+
+cbb_filtered <- cbb_new %>%
+  filter(!is.na(NEW_SEED))
+```
+
+```{r, echo=FALSE}
+
+ggplot(cbb_filtered, aes(x = NEW_SEED, y = ADJOE)) +
+  geom_point(size = 1.5, color = "red", alpha = 0.8) + 
+  geom_smooth(method = "lm") + 
+  theme_bw() +
+  labs(x = "Tournament Seed", 
+       y = "Adjusted Offensive Efficiency",
+       title = "Relationship Between Tournament Seeding and ADJOE")
+
+```
+
+#### Statistical Model
+
+Let Y_i represent the Adjusted Offensive Efficiency of the ith team, and let X_i represent the tournament seed of the same team. We model the relationship between ADJOE and tournament seed using the following linear regression model:
+
+Y_i = β_0 + β_1 X_i + ε_i, i = 1, ..., n
+
+Y_i is the adjusted offensive efficiency (ADJOE) of team i.
+
+X_i is the tournament seed of team i.
+
+β_0 is the intercept (the expected ADJOE when the seed X_i = 0)
+
+β_1 is the slope, representing the change in ADJOE for each one-unit increase in tournament seed.
+
+ε_i is the random error term for team i, assumed to follow ε_i ~ N(0,σ^2)
+
+n is the number of teams in the dataset.
+
+#### Hypotheses
+
+With this model, we will then conduct a 2-sided hypothesis test with 
+
+H_0: β_1 = 0
+
+H_a: β_1 != 0
+
+#### Interpretation
+
+Since the p-value (1.96e-13) is extremely small and less than the significance level, we have strong evidence to reject the null hypothesis. Therefore, we can conclude that there is a significant relationship between a team's tournament seed and its adjusted offensive efficiency.
+
+#### Assumptions
+
+```{r, echo=FALSE}
+model <- lm(ADJOE ~ NEW_SEED, data = cbb_filtered)
+cbb_filtered %>% 
+  mutate(residuals = resid(model)) %>% 
+  ggplot(aes(x=NEW_SEED, y=residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "red") + 
+  labs(x = "Tournament Seed", title = "Residual Plot")
+```
+
+1. Linearity satisfied; No curved patter present.
+
+2. Normality around 0 satisfied.
+
+3. Constant variance satisfied; points show no obvious spreading out or funneling in from left to right.
+
+## Discussion
+
+#### Further Interpretation
+
+Based on our study, we discovered a connection between tournament seeding (SEED) and adjusted offensive efficiency (ADJOE) relative to each team. Teams with higher seeds (closer to 1) typically exhibit higher offensive efficiency. This trend is statistically significant, indicating that it is unlikely to have occurred by chance alone. However, the statistical dependence is weak, suggesting that while seeding is important, other factors are also likely to influence offensive efficiency.
+
+#### Shortcomings
+
+The analysis is limited to data from 2022, which may fail to capture long-term patterns or seasonal fluctuations. Furthermore, our linear regression model suggests a clear link between seeding and offensive efficiency. However, real-world data is more complex, and the model may not account for nonlinear interactions. Other factors, such as a team's defensive efficiency, the strength of their schedule, coaching strategies, or the team's health, likely influence performance but were not included in this analysis. Additionally, some teams may perform significantly better or worse than expected for their seed, potentially skewing the results.
+
+#### Future Work
+
+Analyzing multiple years of data to determine whether the relationship between seed and ADJOE is stable over time or fluctuates by season would be the first step. Additionally, including a team's adjusted defensive efficiency (ADJDE) could provide a more comprehensive view of overall team performance. Considering external factors such as conference strength, roster composition, and geographical influences could also help assess how these variables impact success compared to seeding. This analysis could reveal how offensive efficiency and seeding affect a team’s progression through tournament rounds, where they are eliminated, or whether they ultimately win the tournament.
+
+#### Conclusion
+
+According to the data, there is a statistically significant correlation between tournament seeding and adjusted offensive efficiency, indicating that teams with higher seeds typically exhibit superior offensive performance. However, future studies should address the noted limitations and explore additional factors to gain a deeper understanding of team performance and tournament dynamics, leading to more comprehensive findings.
+
+## References
+
+Dataset - https://www.kaggle.com/datasets/andrewsundberg/college-basketball-dataset?resource=download
+
+original source - https://barttorvik.com/trank.php?year=2024#Wisconsin
+
+Collected by Bart Torvik (UW-Madison alumnus).
